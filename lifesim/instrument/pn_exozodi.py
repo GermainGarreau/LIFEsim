@@ -1,5 +1,7 @@
 import numpy as np
 from typing import Union
+from scipy.ndimage import map_coordinates
+from scipy import ndimage
 
 from lifesim.core.modules import PhotonNoiseUniverseModule
 from lifesim.util import constants
@@ -10,6 +12,17 @@ class PhotonNoiseExozodi(PhotonNoiseUniverseModule):
     """
     This class simulates the noise contribution of an exozodi disk to the interferometric
     measurement of LIFE.
+
+    Notes
+    ----------
+
+    Attributes
+    ----------
+
+    inc : float
+        Inclination of the disk in degree.
+    PA : float
+        Position angle of the disk in degree.
     """
 
     def __init__(self,
@@ -21,6 +34,8 @@ class PhotonNoiseExozodi(PhotonNoiseUniverseModule):
         name : str
             Name of the module.
         """
+        self.inc = 0
+        self.PA = 0
 
     def noise(self,
               index: Union[int, type(None)]):
@@ -130,6 +145,44 @@ class PhotonNoiseExozodi(PhotonNoiseUniverseModule):
 
         ap = np.where(self.data.inst['radius_map']
                       <= self.data.options.other['image_size'] / 2, 1, 0)
+
+        # incline the disk with the given inc and PA
+        inc = self.inc
+        PA = self.PA
+
+        if inc != 0:
+            n_center = self.data.options.other['image_size'] // 2
+            f_nu_disk_list = []
+            for i in range(len(self.data.inst["wl_bins"])):
+                xx = r_au[i,:,n_center]
+                xx[:len(xx)//2] *= -1
+                xx_grid = np.tile(xx, (int(self.data.options.other['image_size']), 1))
+                # phase map of the disk
+                phi = np.arccos(xx_grid/r_au[i])
+
+                yy_grid = r_au[i]*np.sin(phi) * np.cos(inc * np.pi/180)
+                yy_grid[len(xx)//2:, :] *= -1
+
+                # perform the inclination of the disk
+                yy_1D = yy_grid[:,0]
+                pix_au_size = (np.max(yy_1D) - np.min(yy_1D))/len(yy_1D)
+                ymax = np.max(xx)
+                n_pix = int(2*ymax/pix_au_size)
+                yy_1D = np.linspace(ymax, -ymax, n_pix)
+                yy_grid = np.tile(np.transpose([yy_1D]), (1, int(self.data.options.other['image_size'])))
+
+                f_nu_disk_i = np.zeros((n_pix, len(xx)))
+                f_nu_disk_i[(n_pix-len(xx))//2:(n_pix-len(xx))//2+len(xx)] += f_nu_disk[i]
+                idx = np.linspace(0, f_nu_disk_i.shape[0], f_nu_disk_i.shape[1]+1, dtype=int)
+                f_nu_disk_i = np.add.reduceat(f_nu_disk_i, idx[:-1], axis = 0)
+
+                # perform the rotation for PA
+                f_nu_disk_i_pa = ndimage.rotate(f_nu_disk_i, PA, reshape = False)
+
+                f_nu_disk_list.append(f_nu_disk_i_pa)
+
+            f_nu_disk = np.array(f_nu_disk_list)
+
         # add the transmission map
         ez_leak = (f_nu_disk * self.data.inst['t_map'] * ap).sum(axis=(-2, -1))
 
