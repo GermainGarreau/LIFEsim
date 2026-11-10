@@ -32,7 +32,7 @@ setup(
               'lifesim.optimize',
               'lifesim.util'],
     include_package_data=True,
-    package_data={'lifesim.instrument': ['Gra_81']},
+    package_data={'lifesim.util': ['Gra_81']},
     install_requires=['astropy>=5.2.1',
                       'matplotlib>=3.7.0',
                       'numpy>=1.24.2',
