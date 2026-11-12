@@ -285,10 +285,13 @@ class PhotonNoiseHEZD(PhotonNoiseUniverseModule):
         is performed. Table data are cached using the resolved file path.
         """
         path = Path(self.gra_file).expanduser() if self.gra_file is not None else Path(__file__).with_name('Gra_81')
-        if self.gra_file is None and not path.is_file():
-            path = Path('Gra_81')
+        if self.gra_file is None:
+            path = Path(__file__).resolve().parent.parent / 'data' / 'Gra_81'
+        else:
+            path = Path(self.gra_file).expanduser()
+            
         if not path.is_file():
-            raise FileNotFoundError('Set gra_file to the full path of the Gra_81 file: ' + str(path))
+            raise FileNotFoundError(f'Gra_81 file not found: {path}')
         path = path.resolve()
         radii, wavelength, table = _read_gra81(str(path))
         a = self.grain_size_um
